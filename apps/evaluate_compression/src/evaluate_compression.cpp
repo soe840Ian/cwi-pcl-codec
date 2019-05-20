@@ -41,11 +41,22 @@
 //  Created by Kees Blom on 06/04/16.
 //  Copyright (c) 2016- Centrum Wiskunde en Informatica. All rights reserved.
 //
+
 #include <evaluate_compression.h>
 #include <evaluate_compression_impl.hpp>
+#include <iostream>
 
 
 int main(int argc, char * argv[]) {
-  evaluate_compression_impl<PointXYZRGB> evaluator(argc, argv);
-  return evaluator.evaluate() == true ? 0 : -1;
+  int a ;
+  cout << "Please input 10 to start compression" << endl ;
+  cin >> a ;
+
+  if ( a==10 ) {
+    evaluate_compression_impl<PointXYZRGB> evaluator(argc, argv);
+    return evaluator.evaluate() == true ? 0 : -1;
+  }
+  else 
+    cout << "checkout" ;
+    
 }

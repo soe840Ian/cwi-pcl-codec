@@ -63,6 +63,10 @@
 #include <Eigen/Geometry>
 #include <pcl/cloud_codec_v2/impl/rigid_transform_coding_impl.hpp>
 
+#include <pcl/visualization/cloud_viewer.h> // simple
+#include <pcl/visualization/pcl_visualizer.h> // complex
+
+
 namespace pcl{
 
   namespace io{
@@ -182,6 +186,7 @@ namespace pcl{
 
         if (b_show_statistics_) // todo update for codec v2
         {
+          // static_cast<float>Returns a value of type new_type.
           float bytes_per_XYZ = static_cast<float> (compressed_point_data_len_) / static_cast<float> (point_count_);
           float bytes_per_color = static_cast<float> (compressed_color_data_len_) / static_cast<float> (point_count_);
             
@@ -347,19 +352,11 @@ namespace pcl{
       ////////////////////////////////////////////////////////////////////////////
 
       ///////////// compute the simplified cloud by iterating the octree ////////
-#if PCL_VERSION >= 100901
-	octree::OctreeDepthFirstIterator<OctreeT> it_ = octree_simplifier->leaf_depth_begin();
-
-	  for (int l_index = 0; *it_; it_++, l_index++)
-	  {
-		  if (it_.isBranchNode()) continue;
-#else//PCL_VERSION >= 100901
-	  octree::OctreeDepthFirstIterator<OctreeT> it_ = octree_simplifier->leaf_begin();
-	  octree::OctreeLeafNodeIterator<OctreeT> it_end = octree_simplifier->leaf_end();
+      octree::OctreeLeafNodeIterator<OctreeT> it_ = octree_simplifier->leaf_begin();
+      octree::OctreeLeafNodeIterator<OctreeT> it_end = octree_simplifier->leaf_end();
 
       for(int l_index =0;it_ !=it_end; it_++, l_index++)
       {
-#endif//PCL_VERSION >= 100901
         // new point for the simplified cloud
         PointT l_new_point;
 
@@ -412,14 +409,14 @@ namespace pcl{
     {
       MacroBlockTree *tree = new MacroBlockTree
         (
-        MANUAL_CONFIGURATION,
-        false,
-        point_resolution_,
-        octree_resolution_ * macroblock_size_,
-        true,
-        0,
-        true,
-        color_bit_resolution_
+        MANUAL_CONFIGURATION, // compressionProfile
+        false, // showStatistics_atg
+        point_resolution_, // resolution of point 
+        octree_resolution_ * macroblock_size_, // resolution of octree * size of macroblock
+        true, // doVoxelGridDownDownSampling_arg
+        0, // iFrameRate_atg
+        true, // doColorEncoding
+        color_bit_resolution_ // colorBitResulution
         /*,0,do_voxel_centroid_enDecoding_*/
         );
 
@@ -472,6 +469,7 @@ namespace pcl{
         pcl::PointCloud<PointT> & rcloud_out = *p_cloud;
         pcl::PointCloud<PointT> & rcloud_in = *i_cloud;
 
+        // iterate the i_cloud, find mse(?) variance/average
         for(int i=0; i<rcloud_in.size();i++)
         {
           in_av[0]+= (double) rcloud_in[i].r;
@@ -483,6 +481,7 @@ namespace pcl{
         in_av[1]/=rcloud_in.size();
         in_av[2]/=rcloud_in.size();
 
+        // calculate mse 
         // variance
         for(int i=0; i<rcloud_in.size();i++)
         {
@@ -548,23 +547,56 @@ namespace pcl{
 
       icp.setMaximumIterations (icp_max_iterations_);
       // Set the transformation epsilon (criterion 2)
-      icp.setTransformationEpsilon (transformationepsilon_);
+      icp.setTransformationEpsilon (transformationepsilon_); // 設定兩次變化矩陣之間的差值（一般設定為1e-10即可）
       // Set the euclidean distance difference epsilon (criterion 3)
-      icp.setEuclideanFitnessEpsilon (3 * transformationepsilon_);
+      icp.setEuclideanFitnessEpsilon (3 * transformationepsilon_);  // 設定收斂條件是均方誤差和小於閾值， 停止迭代；
 
       pcl::PointCloud<PointT> Final;
       icp.align(Final);
 
       // compute the fitness for the colors
-
+      int timesss = 0 ;
       if(icp.hasConverged() && icp.getFitnessScore() < point_resolution_ * 2)
       {
         has_converged = true;
-//        rigid_transform = new Eigen::Matrix4f(icp.getFinalTransformation());
-	rigid_transform = icp.getFinalTransformation();
+      // rigid_transform = new Eigen::Matrix4f(icp.getFinalTransformation());
+	      rigid_transform = icp.getFinalTransformation();
+
+        // generate the transformed pointcloud
+        pcl::PointCloud<PointT> input_transformed;
+        pcl::transformPointCloud(*i_cloud, input_transformed, rigid_transform); // why need * and output doesn't ??????
+
+        //typename boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+        //viewer->setBackgroundColor (0, 0, 0);
+        //viewer->addPointCloud<PointT> (input_transformed, "sample cloud");
+        //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
+        //viewer->addCoordinateSystem (1.0);
+        //viewer->initCameraParameters ();
+        //pcl::visualization::CloudViewer exShow ("test");
+        //exShow.showCloud(i_cloud);
+        //while (!exShow.wasStopped()){ }
+
+        pcl::PCLPointCloud2::Ptr cloud2(new pcl::PCLPointCloud2());
+        pcl::toPCLPointCloud2( *i_cloud, *cloud2);
+        pcl::PLYWriter writer;
+        // string str ();
+        // str = string(timesss);
+        writer.write( timesss + "testWrite.ply", cloud2);
+        timesss ++ ;
+        boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+        viewer->setBackgroundColor (0, 0, 0);  
+        pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(i_cloud);
+        viewer->addPointCloud<pcl::PointXYZRGB> (i_cloud, "sample cloud"); 
+        viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+        viewer->addCoordinateSystem (1.0);
+        viewer->initCameraParameters ();
+        // while (!viewer->wasStopped()){ }
+
+
         return;
       }
-      has_converged = false;
+      else
+        has_converged = false;
     }
 
     /*! \brief generate a point cloud Delta to output stream
@@ -610,19 +642,11 @@ namespace pcl{
       MacroBlockTree * p_block_tree = generate_macroblock_tree(icp_on_original ? pcloud_arg:simp_pcloud);
 
       //////////// iterate the predictive frame and find common macro blocks /////////////
-#if PCL_VERSION >= 100901
-	  octree::OctreeDepthFirstIterator<OctreeT> it_predictive = p_block_tree->leaf_depth_begin();
-
-	  for (; *it_predictive; ++it_predictive)
-	  {
-	    if (it_predictive.isBranchNode()) continue;
-#else//PCL_VERSION >= 100901
-	  octree::OctreeDepthFirstIterator<OctreeT> it_predictive = p_block_tree->leaf_begin();
-	  octree::OctreeDepthFirstIterator<OctreeT> it_predictive_end = p_block_tree->leaf_end();
+      octree::OctreeLeafNodeIterator<OctreeT> it_predictive = p_block_tree->leaf_begin();
+      octree::OctreeLeafNodeIterator<OctreeT> it_predictive_end = p_block_tree->leaf_end();
 
       for(;it_predictive!=it_predictive_end;++it_predictive)
       {
-#endif//PCL_VERSION >= 100901
         macro_block_count++;
         const octree::OctreeKey current_key = it_predictive.getCurrentOctreeKey();
         pcl::octree::OctreeContainerPointIndices *i_leaf;
@@ -820,25 +844,18 @@ namespace pcl{
 		MacroBlockTree * p_block_tree = generate_macroblock_tree(icp_on_original ? pcloud_arg : simp_pcloud);
 
 		//////////// iterate the predictive frame and find common macro blocks /////////////
-#if PCL_VERSION >= 100901
-		octree::OctreeDepthFirstIterator<OctreeT> it_predictive = p_block_tree->leaf_depth_begin();
-		if (num_threads_ == 0)
-		{
-			for (; *it_predictive; ++it_predictive)
-			{
-				if (!(it_predictive.isLeafNode())) continue;
-#else//PCL_VERSION >= 100901
-		octree::OctreeDepthFirstIterator<OctreeT> it_predictive = p_block_tree->leaf_begin();
-		octree::OctreeDepthFirstIterator<OctreeT> it_predictive_end = p_block_tree->leaf_end();
+		octree::OctreeLeafNodeIterator<OctreeT> it_predictive = p_block_tree->leaf_begin();
+		octree::OctreeLeafNodeIterator<OctreeT> it_predictive_end = p_block_tree->leaf_end();
 		if (num_threads_ == 0)
 		{
 			for (; it_predictive != it_predictive_end; ++it_predictive)
 			{
-#endif//PCL_VERSION >= 100901
-					const octree::OctreeKey current_key = it_predictive.getCurrentOctreeKey();
+				const octree::OctreeKey current_key = it_predictive.getCurrentOctreeKey();
 				pcl::octree::OctreeContainerPointIndices *i_leaf;
 				typename pcl::PointCloud<PointT>::Ptr cloud_out(new pcl::PointCloud<PointT>(icp_on_original ? *pcloud_arg : *simp_pcloud, it_predictive.getLeafContainer().getPointIndicesVector()));
 				macro_block_count++;
+        
+        i_leaf = i_block_tree->findLeaf(current_key.x, current_key.y, current_key.z);
 
 				if ((i_leaf = i_block_tree->findLeaf(current_key.x, current_key.y, current_key.z)) != NULL)
 				{
@@ -850,6 +867,21 @@ namespace pcl{
 					Eigen::Matrix4f rt = Eigen::Matrix4f::Identity();
 					char rgb_offsets[3] = { 0,0,0 };
 
+          // show i_frame
+          //pcl::PointCloud<pcl::PointXYZRGB> showSource ;
+          //pcl::PLYReader reader ; 
+          //reader.read("LowPoisson.ply", showSource);
+          // pcl::PointCloud<pcl::PointXYZRGB>::Ptr showCloud(new pcl::PointCloud<pcl::PointXYZRGB>(*icloud_arg));
+          // boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+          // int v1(0);  //创建新的视口
+          // viewer->createViewPort(0.0, 0.0, 0.5, 1.0, v1);
+          // viewer->setBackgroundColor (0.05, 0.05, 0.05, v1);  
+          // pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZRGB> single_color(showCloud, 0,255,0);
+          // viewer->addPointCloud<pcl::PointXYZRGB> (showCloud, single_color, "sample cloud"); 
+          // viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+          // viewer->addCoordinateSystem (1.0);
+          // viewer->initCameraParameters ();
+
 					// Next function is CPU intensive, and candidate for parallel execution
 					do_icp_prediction(
 						rt,
@@ -858,6 +890,7 @@ namespace pcl{
 						icp_success,
 						rgb_offsets
 						);
+
 					if (icp_success)
 					{
 						convergence_count++;
@@ -936,7 +969,7 @@ namespace pcl{
 					}
 				}
 			}
-		}
+    }
 		else // num_threads > 0 --> parallelization
 /* For _OPENMP, the previous loop over the common macro blocks of a frame must be converted in an equivalent one,
 * where the number of iterations is known before the loop starts.
@@ -946,8 +979,7 @@ namespace pcl{
 */
 		{
 			// store the input arguments for 'do_icp_prediction'
-			for (; *it_predictive; ++it_predictive) {
-				if (it_predictive.isBranchNode()) continue;
+			for (; it_predictive != it_predictive_end; ++it_predictive) {
 				const octree::OctreeKey current_key = it_predictive.getCurrentOctreeKey();
 				pcl::octree::OctreeContainerPointIndices* i_leaf = i_block_tree->findLeaf(current_key.x, current_key.y, current_key.z);
 				cloudInfoT<PointT> ci;
@@ -986,7 +1018,7 @@ namespace pcl{
 						p_result_list[i].rgb_offsets
 						);
 				}
-			} // #pragma omp for
+			} // #pragma omp for				
 #pragma omp barrier // wait until all threads finished
 			for (int i = 0; i < p_result_list.size(); i++)
 			{

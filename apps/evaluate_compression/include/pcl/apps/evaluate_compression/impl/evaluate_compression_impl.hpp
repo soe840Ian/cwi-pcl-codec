@@ -80,7 +80,7 @@ namespace po = boost::program_options;
 #include <stdio.h>
 #endif//WIN32
 #include <evaluate_compression.h>
-#include <quality_metrics.h>
+#include <quality_metrics.h>e
 
 template<typename PointT>
 class evaluate_compression_impl : evaluate_compression {
@@ -279,7 +279,7 @@ evaluate_compression_impl<PointT>::get_options (int argc, char** argv)
   std::vector<std::string> unrecognized_options = po::collect_unrecognized (parsed_options.options, po::exclude_positional);
   if (unrecognized_options.size () > 0) {
     cerr << "Unrecognized options on command line:\n";
-    for (std::vector<std::string>::iterator itr = unrecognized_options.begin (); itr != unrecognized_options.end (); itr++) {
+    for (std::vector<std::string>::iterator itr= unrecognized_options.begin (); itr != unrecognized_options.end (); itr++) {
       std::string unrecognized = *itr;
       std::cerr << unrecognized.c_str () << "\n";
     }
@@ -628,6 +628,7 @@ int
 load_ply_file (std::string path, boost::shared_ptr<pcl::PointCloud<PointT> > pc)
 {
   int rv = 1;
+  // import PCL function
   PLYReader ply_reader;
 /* next straighforward code crashes, work around via PolygonMesh *
    PCLPointCloud2 pc2;
@@ -637,8 +638,11 @@ load_ply_file (std::string path, boost::shared_ptr<pcl::PointCloud<PointT> > pc)
      rv = 0;
    }
 */
+
+ // read .ply file in 
   PolygonMesh mesh;
   if (rv && ply_reader.read (path, mesh) >= 0) {
+    // convert PCL template
     pcl::fromPCLPointCloud2 (mesh.cloud, *pc);
   } else {
     rv= 0;
@@ -692,6 +696,7 @@ load_input_cloud (std::string filename, boost::shared_ptr<pcl::PointCloud<PointT
   return rv;
 }
 
+// e_c.cpp -> come here 算圖區
 template<typename PointT>
 bool
 evaluate_compression_impl<PointT>::evaluate ()
@@ -755,11 +760,12 @@ evaluate_compression_impl<PointT>::evaluate ()
       std::string filename = *itr;
       if (output_index_ == -1) { // get index of first file, 
         boost::filesystem::path p(filename);
-        std::stringstream ss(filename);
+        std::stringstream ss(p.stem().native());
         ss >> output_index_;
         if (output_index_ == -1) // no index found
           output_index_ = 0;
       }
+      // load input file (.ply, pcd)
       boost::shared_ptr<pcl::PointCloud<PointT> > pc (new PointCloud<PointT> ());
       if ( ! load_input_cloud(filename, pc))
       {
@@ -828,7 +834,7 @@ evaluate_compression_impl<PointT>::evaluate_group(std::vector<boost::shared_ptr<
     // decode the string stream
     string s = ss.str ();
     std::stringstream coded_stream (s);//ss.str ());
-    size_t group_size = group.size ();
+    int group_size = group.size ();
     boost::shared_ptr<pcl::PointCloud<PointT> > output_pointcloud (new pcl::PointCloud<PointT> ()), opc (new pcl::PointCloud<PointT> ());
     opc = group[i];
     do_decoding (&coded_stream, output_pointcloud, achieved_quality);
